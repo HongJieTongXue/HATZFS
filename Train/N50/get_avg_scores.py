@@ -7,18 +7,12 @@ N = 50
 idex = 20
 degree_nodes = torch.load("../../Sample/graphid_2_degree0_250.pt")
 
-# indexs = ['old_6']
-# indexs = ['old_5']
-# indexs = ['old_2','old_3','old_4','old_5','old_6']
-# indexs = ['old_1','old_3','old_4','old_5','old_6']
-# indexs = ['old_1','old_2','old_4','old_5','old_6']
-# indexs = ['old_1','old_2','old_3','old_5','old_6']
-# indexs = ['old_1','old_2','old_3','old_4','old_6']
+
 indexs = ['old_1','old_2','old_3','old_4','old_5']
 # indexs = ['old_20']
 for i in indexs:
     res = torch.load("./"+str(i)+"/N"+str(N)+"_"+str(i)+"_allscores.pt",map_location=torch.device("cpu"))
-    # res = torch.load("./"+"old_2"+"/N"+str(N)+"_"+"old_test_"+str(idex)+"_allscores.pt",map_location=torch.device("cpu"))
+
     for node in res.keys():
         # t = int(degree_nodes[node, 0])
         if node not in node_scores.keys():
@@ -26,7 +20,7 @@ for i in indexs:
         else:
             node_scores[node] = node_scores[node] + res[node][0]
 node_scores = sorted(node_scores.items(),key=lambda x:x[1], reverse=True)
-# print(node_scores)
+
 action_choosed = [int(degree_nodes[node, 0]) for node,_ in node_scores]
 torch.save(action_choosed,"N50_avg_5.pt")
 degree0_nodes_ispaad = torch.load("all_nodes_ispaad_new.pt")
