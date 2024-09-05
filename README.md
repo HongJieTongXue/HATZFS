@@ -17,10 +17,10 @@ The code for paper "HATZFS predicts pancreatic cancer driver biomarkers by hiera
 ## 3.Quick Start
 We provide a sample for generating subgraphs of size 50 and training the model:
 1. Download and upzip our data and code files
-2. Run genenate_subgraph1.py and genenate_subgraph2.py (genenate subgraph)
-3. Run get_neibor_linux.py (genenate neighbor layer)
-4. Run hdqn.py (train model)
-5. Run get_sorted_big_cooesed.py and get_avg_scores.py (predict biomarkers)
+2. Run  `genenate_subgraph1.py` and `genenate_subgraph2.py` (genenate subgraph)
+3. Run `get_neibor_linux.py` (genenate neighbor layer)
+4. Run `hdqn.py` (train model)
+5. Run `get_sorted_big_cooesed.py` and `get_avg_scores.py` (predict biomarkers)
 
 ## 4.Contacts
 If you have any questions, please email Jie Hong (hongjie22@mails.jlu.edu.cn)
