@@ -9,11 +9,9 @@ The code for paper "HATZFS predicts pancreatic cancer driver biomarkers by hiera
 ## 2.Dependencies
 * pandas == 2.0.3
 * numpy == 1.21.1
-* numpy == 1.21.1
-* numpy == 1.21.1
-* torch == 2.0.0+cu118
-* sklearn == 0.24.1
-* torch-geometric == 2.3.0
+* networkx == 3.1
+* torch == 2.0.1+cu118
+* dgl == 1.1.2+cu118
 ## 3.Quick Start
 We provide a sample for generating subgraphs of size 50 and training the model:
 1. Download and upzip our data and code files
