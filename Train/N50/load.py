@@ -63,7 +63,7 @@ def load_degree0_graph(path='../../../data/Degree0_graph/'):
     return gragh
 
 #加载子图并转为GAT能用的形式
-def load_subk_GAT_graph(k,path='../../../data/SubGraph/N50/6/'):
+def load_subk_GAT_graph(k,path='../../../data/SubGraph/N50/1/'):
     graph_dict={}
     path = path + str(k)
     if os.path.getsize(path + '/sub_lnc_lnc.csv')>=3:
@@ -121,7 +121,7 @@ def load_subk_GAT_graph(k,path='../../../data/SubGraph/N50/6/'):
     return gragh
 
 
-def load_subk_hetero_graph(k,path='../../../data/SubGraph/N50/6/'):
+def load_subk_hetero_graph(k,path='../../../data/SubGraph/N50/1/'):
     graph_dict={}
     path = path + str(k)
     if os.path.getsize(path + '/sub_lnc_lnc.csv')>=3:

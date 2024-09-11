@@ -13,12 +13,12 @@ class ControllerReplayBuffer:
         self.num_in_buffer = 0#当前经验库里已有经验数量
         self.next_idx = 0#下一个经验来的时候应该存放的位置'''
         self.size = size
-        self.obs = torch.zeros([self.size, obs_size,1]).to('cuda:4')
-        self.next_obs = torch.zeros([self.size, obs_size,1]).to('cuda:4')
-        self.actions = torch.zeros([self.size]).to('cuda:4')
-        self.goals = torch.zeros([self.size]).to('cuda:4')
-        self.rewards = torch.zeros([self.size]).to('cuda:4')
-        self.done = torch.zeros([self.size,1]).to('cuda:4')
+        self.obs = torch.zeros([self.size, obs_size,1]).to('cuda:3')
+        self.next_obs = torch.zeros([self.size, obs_size,1]).to('cuda:3')
+        self.actions = torch.zeros([self.size]).to('cuda:3')
+        self.goals = torch.zeros([self.size]).to('cuda:3')
+        self.rewards = torch.zeros([self.size]).to('cuda:3')
+        self.done = torch.zeros([self.size,1]).to('cuda:3')
         self.num_in_buffer = 0  # 当前经验库里已有经验数量
         self.next_idx = 0  # 下一个经验来的时候应该存放的位置
 

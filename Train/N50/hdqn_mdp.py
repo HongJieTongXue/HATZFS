@@ -10,7 +10,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
 from GAT import *
-# from META_CONTROLLER_MODEL import *
 from replay_buffer import *
 # from controller_replay_buffer import *
 import random
@@ -19,9 +18,9 @@ dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTens
 import os
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 from controller_replay_buffer import *
-#选择子网的外部网络Q（输入是大网状态（3164），输出是N子网数量（335））
+#选择子网的外部网络Q（输入是大网状态（3164），输出是N子网数量（156））
 class MetaController(nn.Module):
-    def __init__(self, in_features=3164, out_features=335):
+    def __init__(self, in_features=3164, out_features=596):
         """
         Initialize a Meta-Controller of Hierarchical DQN network for the diecreate mdp experiment
             in_features: number of features of input.
@@ -29,9 +28,9 @@ class MetaController(nn.Module):
                 Ex: goal for meta-controller or action for controller
         """
         super(MetaController, self).__init__()
-        self.fc1 = nn.Linear(in_features, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(512, out_features)
+        self.fc1 = nn.Linear(in_features, 2048)
+        self.fc2 = nn.Linear(2048, 1024)
+        self.fc3 = nn.Linear(1024, out_features)
 
     def forward(self, x):
         x = F.relu(F.dropout(self.fc1(x),0.1, training=self.training))
@@ -67,9 +66,10 @@ class hDQN():
             How many transitions to sample each time experience is replayed.
     """
     def __init__(self,
-                 num_goal=335,
+                 num_goal=596,
                  num_action=50,
                  batch_size1=128,
+                 batch_size2=32,
                  ):
         ###############
         # BUILD MODEL #
@@ -78,15 +78,15 @@ class hDQN():
         self.num_action = num_action
         self.node_allnum = 3164
         self.batch_size1 = batch_size1
-
+        self.batch_size2 = batch_size2
 
 
         # 构建 meta-controller 和 controller
 
-        self.meta_controller = MetaController().to("cuda:4")
-        self.target_meta_controller = MetaController().to("cuda:4")
-        self.controller = GAT(n_feat=1,n_hid=16,n_class=1,dropout=0.1,alpha=1,n_heads=3).to("cuda:4")
-        self.target_controller = GAT(n_feat=1,n_hid=16,n_class=1,dropout=0.1,alpha=1,n_heads=3).to("cuda:4")
+        self.meta_controller = MetaController().to("cuda:3")
+        self.target_meta_controller = MetaController().to("cuda:3")
+        self.controller = GAT(n_feat=1,n_hid=32,n_class=1,dropout=0.1,alpha=1,n_heads=3).to("cuda:3")
+        self.target_controller = GAT(n_feat=1,n_hid=32,n_class=1,dropout=0.1,alpha=1,n_heads=3).to("cuda:3")
 
         # self.controller.load_state_dict(torch.load("sub_1_9999controllerpt.pt"))
         # self.target_controller.load_state_dict(torch.load("sub_1_9999target_controllerpt.pt"))
@@ -104,10 +104,11 @@ class hDQN():
         self.meta_loss_func = nn.MSELoss()  # 使用均方损失函数 (loss(xi, yi)=(xi-yi)^2)
         self.controller_loss_func = nn.MSELoss()  # 使用均方损失函数 (loss(xi, yi)=(xi-yi)^2)
         self.gamma = 0.99
+
         #读取非零图
         # self.degree0_graph = load_degree0_graph()
-        # self.degree0_adj = torch.from_numpy(np.array(nx.adjacency_matrix(dgl.to_homogeneous(self.degree0_graph).to_networkx().to_undirected()).todense(),dtype=float)).to("cuda:4")
-        # self.degree0_graph= self.degree0_graph.to("cuda:4")
+        # self.degree0_adj = torch.from_numpy(np.array(nx.adjacency_matrix(dgl.to_homogeneous(self.degree0_graph).to_networkx().to_undirected()).todense(),dtype=float)).to("cuda:3")
+        # self.degree0_graph= self.degree0_graph.to("cuda:3")
 
         # self.rna_num = {}
         # self.num_rna = {}
@@ -120,25 +121,25 @@ class hDQN():
         #         curnode += 1
         #     self.rna_num[name] = tmp
         # 需要记录第几个子图的第几个节点，表示大图中的哪个节点
-        # self.station_sub_action = torch.load("degree0_2_subgraph_300.pt")
-        self.station_sub_action = torch.load("../../../Sample/N50/degree0_2_subgraph_50_6_.pt")
+        self.station_sub_action = torch.load("degree0_2_subgraph_50.pt")
         #读取所有子图
         # self.subs = []
         self.adjs = []
         for i in range(num_goal):
             g = load_subk_GAT_graph(i)
-            adj = torch.from_numpy(np.array(nx.adjacency_matrix(dgl.to_homogeneous(g).to_networkx().to_undirected()).todense(),dtype=float)).to("cuda:4")
-            # g = g.to("cuda:4")
+            adj = torch.from_numpy(np.array(nx.adjacency_matrix(dgl.to_homogeneous(g).to_networkx().to_undirected()).todense(),dtype=float)).to("cuda:3")
+            # g = g.to("cuda:3")
             # self.subs.append(g)
             self.adjs.append(adj)
-
+        self.adjs = torch.stack(self.adjs).to("cuda:3")
 
     #选择
     def select_goal(self, state, epilson,subgraph_control,test=False):
 
         if test:
             # print(test)
-            goal_index = [i for i, s in enumerate(subgraph_control) if s == 1]
+            # goal_index = [i for i, s in enumerate(subgraph_control) if s == 1]
+            goal_index = torch.nonzero(subgraph_control==1)[:,0].tolist()
             goals_value = self.meta_controller.forward(state)
             # print(actions_value.shape)
             goals_value[0, goal_index] = float("-inf")
@@ -146,7 +147,7 @@ class hDQN():
             return goal
         # print("***")
         sample = random.random()
-        goal_index = [i for i, s in enumerate(subgraph_control) if s == 1]
+        goal_index = torch.nonzero(subgraph_control==1)[:,0].tolist()
         if sample < epilson:
             goals_value = self.meta_controller.forward(state)
             # print(actions_value.shape)
@@ -156,35 +157,33 @@ class hDQN():
             return goal
         else:
             # goal = int(torch.IntTensor([random.randrange(self.num_goal)]))
-            chices = [i for i, num in enumerate(subgraph_control) if num == 0]
+            chices = torch.nonzero(subgraph_control==0)[:,0].tolist()
 
             return random.choice(chices)
 
 
     def select_action(self, state,goal, epilson,test=False):
         if test:
-            # print(test)
-            action_index = [i for i, s in enumerate(state[0, :, 0]) if s == 1]
+            # action_index = [i for i, s in enumerate(state[0, :, 0]) if s == 1]
+            action_index = torch.nonzero(state==1)[:,1].tolist()
             actions_value = self.controller.forward(state, self.adjs[goal])
-            # print(actions_value.shape)
+
             actions_value[0, action_index, 0] = float("-inf")
             action = torch.argmax(actions_value).item()
             return action
         # print("***")
         sample = random.random()
         if sample < epilson:
-            action_index = [i for i, s in enumerate(state[0, :, 0]) if s == 1]
+            action_index = torch.nonzero(state==1)[:,1].tolist()
             actions_value = self.controller.forward(state, self.adjs[goal])
             # print(actions_value.shape)
             actions_value[0, action_index, 0] = float("-inf")
             action = torch.argmax(actions_value).item()
             return action
         else:
-            # action = int(torch.IntTensor([random.randrange(self.num_action)]))
             # 从未被选择的action中选择action
-            chices = [i for i, num in enumerate(state[0, :, 0]) if num != 1]
-            # print(len(chices))
-            # print("可选项："+str(len(chices)),end=" ")
+            chices = torch.nonzero(state!=1)[:,1].tolist()
+
             return random.choice(chices)
 
 
@@ -201,7 +200,7 @@ class hDQN():
         # print(b_s.shape,b_a.shape,b_r.shape,b_s_.shape,b_done)
 
 
-        q_eval = self.meta_controller.forward(b_s).gather(1, b_a.long().unsqueeze(1)).squeeze(1)
+        q_eval = self.meta_controller.forward(b_s).gather(1, b_a.long().unsqueeze(1))
 
         q_next = self.target_meta_controller.forward(b_s_).detach().max(dim=1)[0]
 
@@ -209,8 +208,8 @@ class hDQN():
         for batch in range(self.batch_size1):# 注意！这里要判断一下是否是done，如果结束的话q-target只有reward部分，不加next状态的q值
 
             if b_done[batch,0]==1:
-                q_next[batch] = torch.tensor(0).to("cuda:4")
-        q_target=0.99 * q_next + torch.tensor(b_r).clone().detach().to("cuda:4") #=当初获得的奖励+下一步的价值（max（1）返回的是【最大值，索引】，所以取出下标0的最大值
+                q_next[batch] = torch.tensor(0).to("cuda:3")
+        q_target=0.99 * q_next + torch.tensor(b_r).clone().detach().to("cuda:3") #=当初获得的奖励+下一步的价值（max（1）返回的是【最大值，索引】，所以取出下标0的最大值
 
         loss=self.meta_loss_func(q_eval, q_target)
         loss.backward()
@@ -228,22 +227,22 @@ class hDQN():
         #mini batch更新eval网络参数
         #每一步都更新eval参数，一定时间赋值给target
         # b_s,b_a,b_g,b_r,b_s_,done = self.ctrl_replay_memory.sample(self.batch_size)
-        b_s,b_a,b_g,b_r,b_s_,done = self.ctrl_replay_memory.sample(1)
+        b_s,b_a,b_g,b_r,b_s_,done = self.ctrl_replay_memory.sample(self.batch_size2)
         # print(b_s)
         #
         # print(self.controller.forward(b_s,self.adj))
-        b_g = int(b_g)
-        q_eval = self.controller.forward(b_s,self.adjs[b_g]).squeeze(2).gather(1, b_a.long().unsqueeze(1)).squeeze(1)
+
+        q_eval = self.controller.forward(b_s,self.adjs[b_g.long()]).squeeze(2).gather(1, b_a.long().unsqueeze(1)).squeeze(1)
         # print(q_eval,"***",q_eval.shape)
-        q_next=self.target_controller.forward(b_s_,self.adjs[b_g]).squeeze(2).detach().max(dim=1)[0]
+        q_next=self.target_controller.forward(b_s_,self.adjs[b_g.long()]).squeeze(2).detach().max(dim=1)[0]
         # print(q_next,"******",q_next.shape)
 
         # for one_done,batch in zip(done,range(self.batch_size)):# 注意！这里要判断一下是否是done，如果结束的话q-target只有reward部分，不加next状态的q值
         for one_done,batch in zip(done,range(1)):# 注意！这里要判断一下是否是done，如果结束的话q-target只有reward部分，不加next状态的q值
             if one_done:
-                q_next[batch] = torch.tensor(0).to("cuda:4")
+                q_next[batch] = torch.tensor(0).to("cuda:3")
 
-        q_target=self.gamma* q_next + b_r.to("cuda:4") #=当初获得的奖励+下一步的价值（max（1）返回的是【最大值，索引】，所以取出下标0的最大值
+        q_target=self.gamma* q_next + b_r.to("cuda:3") #=当初获得的奖励+下一步的价值（max（1）返回的是【最大值，索引】，所以取出下标0的最大值
         # print(q_eval,q_target)
         loss=self.controller_loss_func(q_eval, q_target)
         # print("loss",loss)
@@ -252,84 +251,3 @@ class hDQN():
         self.controller_scheduler.step()
         self.ctrl_optimizer.zero_grad()
 
-    # 无法实现GPU的优势，只能一个一个合成，因为子网中各个种类RNA，数量不同
-    # def update_controller(self, gamma=1.0):
-    #     if self.controller_learn_step_counter % self.maxiter == 0:
-    #         self.target_controller.load_state_dict(self.controller.state_dict())
-    #     self.controller_learn_step_counter += 1
-    #
-    #     # sample batch transitions
-    #     #mini batch更新eval网络参数
-    #     #每一步都更新eval参数，一定时间赋值给target
-    #     b_s,b_a,b_g,b_r,b_s_,done = self.ctrl_replay_memory.sample(self.batch_size2)
-    #     # print(b_s.shape,b_a.shape,b_g.shape,b_r.shape,b_s_.shape,done)
-    #
-    #     q_val = torch.tensor([]).to("cuda:4")
-    #     q_next_value = torch.tensor([]).to("cuda:4")
-    #     # 不能拼接，只能for循环处理
-    #     for i in range(self.batch_size2):
-    #         subk = int(b_g[i])
-    #         mrna_h_s = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][2] ).view(
-    #             self.sub_lim_num[subk][2], 1).to("cuda:4")
-    #         lncrna_h_s = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][0] * 1).view(
-    #             self.sub_lim_num[subk][0], 1).to("cuda:4")
-    #         mirna_h_s = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][1] * 1 ).view(
-    #             self.sub_lim_num[subk][1], 1).to("cuda:4")
-    #         # print(lncrna_h_s.shape,mirna_h_s.shape,mrna_h_s.shape)
-    #         # print(b_s.T[:self.degree0_graph.number_of_nodes('lncrna')].shape,lncrna_h_s.shape,"*******")
-    #         b_st = b_s[i].unsqueeze(0)
-    #         # print(b_st.shape)
-    #         #因为被选中是1，没被选中是-1，所以需要1*2-1 = 1
-    #         lncrna_h_s = (b_st.T[:self.sub_lim_num[subk][0]] * 2 + lncrna_h_s)
-    #         mirna_h_s = (b_st.T[self.sub_lim_num[subk][0]:self.sub_lim_num[subk][0] + self.sub_lim_num[subk][1]] * 2 + mirna_h_s)
-    #         mrna_h_s = (b_st.T[self.sub_lim_num[subk][0] + self.sub_lim_num[subk][1]:] * 2 + mrna_h_s)
-    #         # print(lncrna_h_s.shape, mirna_h_s.shape, mrna_h_s.shape)
-    #         mrna_h_s_ = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][2]  ).view(
-    #             self.sub_lim_num[subk][2], 1).to("cuda:4")
-    #         lncrna_h_s_ = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][0] * 1).view(
-    #             self.sub_lim_num[subk][0], 1).to("cuda:4")
-    #         mirna_h_s_ = torch.tensor(
-    #             [-1.0] * self.sub_lim_num[subk][1] * 1 ).view(
-    #             self.sub_lim_num[subk][1], 1).to("cuda:4")
-    #         b_s_t = b_s_[i].unsqueeze(0)
-    #         # print(b_s_t.shape)
-    #         lncrna_h_s_ = (b_s_t.T[:self.sub_lim_num[subk][0]] * 2 + lncrna_h_s_)
-    #         mirna_h_s_ = (b_s_t.T[self.sub_lim_num[subk][0]:self.sub_lim_num[subk][0]+self.sub_lim_num[subk][1]] * 2 +
-    #                       mirna_h_s_)
-    #         mrna_h_s_ = (b_s_t.T[self.sub_lim_num[subk][0]+self.sub_lim_num[subk][1]:] * 2 + mrna_h_s_)
-    #         # print(lncrna_h_s_.shape, mirna_h_s_.shape, mrna_h_s_.shape)
-    #         h_s = {'lncrna': lncrna_h_s, 'mirna': mirna_h_s, 'mrna': mrna_h_s}
-    #         h_s_ = {'lncrna': lncrna_h_s_, 'mirna': mirna_h_s_, 'mrna': mrna_h_s_}
-    #         rna_num = self.sub_lim_num[subk]
-    #         # print(self.controller.forward(self.subs[subk].to("cuda:4"), rna_num, h_s).shape)
-    #         q_val = torch.cat((q_val,self.controller.forward(self.subs[subk].to("cuda:4"), rna_num, h_s)),dim=1)
-    #         # print(self.controller.forward(self.subs[subk].to("cuda:4"), rna_num, h_s_).shape)
-    #         q_next_value = torch.cat((q_next_value,self.controller.forward(self.subs[subk].to("cuda:4"), rna_num, h_s_)),dim=1)
-    #
-    #     # print(q_val.shape,b_a.shape)
-    #     # print(q_next_value.shape)
-    #     # print(self.meta_controller.forward(self.degree0_graph,rna_num, h_s).shape,"***")
-    #     #(50,128)->(128,50)
-    #     q_val = q_val.transpose(0,1)
-    #     q_eval = q_val.gather(1, b_a.long().unsqueeze(1))
-    #     # print(q_eval.shape)
-    #     q_next = q_next_value.detach().max(dim=0)[0]
-    #
-    #
-    #     for one_done,batch in zip(done,range(self.batch_size2)):# 注意！这里要判断一下是否是done，如果结束的话q-target只有reward部分，不加next状态的q值
-    #         # print(one_done,int(one_done),one_done.shape)
-    #         if one_done==1:
-    #             q_next[batch] = torch.tensor(0).to("cuda:4")
-    #     #***
-    #     q_target=0.99 * q_next + b_r.clone().detach().to("cuda:4") #=当初获得的奖励+下一步的价值（max（1）返回的是【最大值，索引】，所以取出下标0的最大值
-    #     q_target = q_target.unsqueeze(1)
-    #     loss=self.meta_loss_func(q_eval, q_target)
-    #     loss.backward()
-    #     self.ctrl_optimizer.step()
-    #     self.controller_scheduler.step()
-    #     self.ctrl_optimizer.zero_grad()

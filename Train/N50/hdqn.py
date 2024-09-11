@@ -40,16 +40,12 @@ def hdqn_learning(
     # Keep track of useful statistics
 
     env = StochasticMDPEnv()
-    # agent.meta_controller = torch.load("meta-all_60.pt",map_location=torch.device("cuda:1")).to("cuda:1")
-    # agent.controller = torch.load("controller-60.pt",map_location=torch.device("cuda:1")).to("cuda:1")
-    # agent.meta_replay_memory = torch.load("meta-memory_60.pt",map_location=torch.device("cuda:1"))
-    # agent.ctrl_replay_memory = torch.load("controller-memory-60.pt",map_location=torch.device("cuda:1"))
-
 
     print("初始化完毕！")
     #循环episode
     for i_thousand_episode in range(100):
         batch_size1 = 128
+        batch_size2 = 1
 
         #重置环境
         #(3164)
@@ -87,7 +83,9 @@ def hdqn_learning(
                 chooesed.append(env.station_sub_action[goal][action])
                 # 更新状态，并获取reward奖励
                 # 存在子图k，action更新了，current_state没更新的情况
+                # print(torch.sum(env.current_state),end=" ")
                 next_state, extrinsic_reward, isdone = env.step(goal,action)
+                # print(torch.sum(env.current_state))
 
                 if extrinsic_reward > 0:
                     goal_reached = True
@@ -101,8 +99,9 @@ def hdqn_learning(
                 agent.ctrl_replay_memory.store_transition(sub_state_t, action,goal, extrinsic_reward, sub_state_next_t.clone(), isdone)
                 # # 更新网络
                 #
-                if agent.ctrl_replay_memory.can_sample(1):
+                if agent.ctrl_replay_memory.can_sample(batch_size2):
                     agent.update_controller()
+
                 if agent.meta_replay_memory.can_sample(batch_size1):
                     agent.update_meta_controller()
 
@@ -112,7 +111,7 @@ def hdqn_learning(
                 #更新状态
                 current_state = env.current_state.clone()
 
-            # print(torch.sum(current_state))
+                # print(torch.sum(current_state),extrinsic_reward,env.station_sub_action[goal][action],isdone,goal_reached)
 
             done = torch.tensor(env.meta_isdone()).reshape(1,1)
             if torch.sum(current_state) == 3164:
@@ -126,18 +125,18 @@ def hdqn_learning(
 
 
         if (i_thousand_episode+1) %20 == 0:
-            torch.save(agent.meta_controller,"meta-all_"+str(i_thousand_episode+1)+".pt")
-            torch.save(agent.meta_replay_memory,"meta-memory_"+str(i_thousand_episode+1)+".pt")
-            torch.save(chooesed,"chooesed_"+str(i_thousand_episode+1)+".pt")
-            torch.save(agent.controller,"controller-"+str(i_thousand_episode+1)+".pt")
-            torch.save(agent.ctrl_replay_memory, "controller-memory-" + str(i_thousand_episode + 1) + ".pt")
+            torch.save(agent.meta_controller,"meta-N300-2-"+str(i_thousand_episode+1)+".pt")
+            torch.save(agent.meta_replay_memory,"meta-memory-N300-2-"+str(i_thousand_episode+1)+".pt")
+            # torch.save(chooesed,"chooesed_"+str(i_thousand_episode+1)+".pt")
+            torch.save(agent.controller,"controller-N300-2-"+str(i_thousand_episode+1)+".pt")
+            torch.save(agent.ctrl_replay_memory, "controller-memory-N300-2-" + str(i_thousand_episode + 1) + ".pt")
 
 
 
     return agent
 
 if __name__ == '__main__':
-    agent = hDQN(batch_size1=128)
+    agent = hDQN(batch_size1=128,batch_size2=1)
 
 
     hdqn_learning(agent)
